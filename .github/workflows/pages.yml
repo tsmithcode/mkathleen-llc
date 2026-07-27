@@ -1,0 +1,63 @@
+name: Deploy M. Kathleen, LLC to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate standalone release
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f index.html
+          test -f site.css
+          test -f site.js
+          grep -q 'M\. Kathleen, LLC' index.html
+          grep -q 'Melodie Craig' index.html
+          grep -q 'MelodieCraig@gmail.com' index.html
+          grep -q '470-775-5778' index.html
+          grep -q 'https://tsmithcode.github.io/mkathleen-llc/' index.html
+          if grep -nEi 'CAD Guardian|tsmithcode\.github\.io/bdpc|/bdpc/m-kathleen' \
+            index.html site.css site.js README.md robots.txt sitemap.xml release-manifest.json; then
+            echo 'Cross-project reference found.' >&2
+            exit 1
+          fi
+
+  deploy:
+    needs: validate
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Assemble public artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          cp index.html 404.html site.css site.js favicon.svg og-card.svg \
+             robots.txt sitemap.xml .nojekyll _site/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

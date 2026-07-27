@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://tsmithcode.github.io/mkathleen-llc/sitemap.xml
