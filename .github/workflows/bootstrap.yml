@@ -1,0 +1,174 @@
+name: Bootstrap standalone M. Kathleen site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/bootstrap.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bootstrap-mkathleen
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the new standalone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Retrieve the approved release snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/source
+          curl -L --fail --retry 3 \
+            'https://api.github.com/repos/tsmithcode/bdpc/tarball/0a22b934b4720d33e196bacb62c10a07e68d32ef' \
+            -o /tmp/source/site.tar.gz
+          tar -xzf /tmp/source/site.tar.gz -C /tmp/source
+          SOURCE_DIR="$(find /tmp/source -type d -path '*/m-kathleen' -print -quit)"
+          test -n "$SOURCE_DIR"
+          test -f "$SOURCE_DIR/index.html"
+
+      - name: Move the site into its independent repository root
+        shell: bash
+        run: |
+          set -euo pipefail
+          SOURCE_DIR="$(find /tmp/source -type d -path '*/m-kathleen' -print -quit)"
+          find . -mindepth 1 -maxdepth 1 ! -name '.git' ! -name '.github' -exec rm -rf {} +
+          cp -a "$SOURCE_DIR"/. ./
+          rm -rf .bootstrap
+
+          mapfile -d '' TEXT_FILES < <(find . -type f \
+            \( -name '*.html' -o -name '*.css' -o -name '*.js' -o -name '*.svg' \
+               -o -name '*.md' -o -name '*.json' -o -name '*.xml' -o -name '*.txt' \) \
+            -print0)
+          if ((${#TEXT_FILES[@]})); then
+            perl -pi -e 's#https://tsmithcode\.github\.io/bdpc/m-kathleen/?#https://tsmithcode.github.io/mkathleen-llc/#g; s#/bdpc/m-kathleen/#/mkathleen-llc/#g; s/BDPC/M. Kathleen, LLC/g; s/bdpc/mkathleen-llc/g' "${TEXT_FILES[@]}"
+          fi
+
+          cat > README.md <<'EOF'
+          # M. Kathleen, LLC
+
+          Independent production website for **M. Kathleen, LLC**, founded by **Melodie Craig, CPP**.
+
+          - Production: https://tsmithcode.github.io/mkathleen-llc/
+          - Market: Metro Atlanta and remote payroll operations support
+          - Deployment: GitHub Pages from this repository only
+
+          No client-project repository is used by this website.
+          EOF
+
+          touch .nojekyll
+          cat > robots.txt <<'EOF'
+          User-agent: *
+          Allow: /
+          Sitemap: https://tsmithcode.github.io/mkathleen-llc/sitemap.xml
+          EOF
+          cat > sitemap.xml <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+            <url><loc>https://tsmithcode.github.io/mkathleen-llc/</loc></url>
+          </urlset>
+          EOF
+          cp index.html 404.html
+
+      - name: Install the permanent Pages deployment workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .github/workflows/pages.yml <<'EOF'
+          name: Deploy M. Kathleen website
+
+          on:
+            push:
+              branches: [main]
+            workflow_dispatch:
+
+          permissions:
+            contents: read
+            pages: write
+            id-token: write
+
+          concurrency:
+            group: pages
+            cancel-in-progress: true
+
+          jobs:
+            deploy:
+              environment:
+                name: github-pages
+                url: ${{ steps.deployment.outputs.page_url }}
+              runs-on: ubuntu-latest
+              steps:
+                - name: Check out source
+                  uses: actions/checkout@v4
+                - name: Validate repository and public claims
+                  shell: bash
+                  run: |
+                    set -euo pipefail
+                    test -f index.html
+                    test -f favicon-v2.svg -o -f favicon.svg
+                    grep -q 'M. Kathleen, LLC' index.html
+                    grep -q 'Melodie Craig' index.html
+                    grep -q 'MelodieCraig@gmail.com' index.html
+                    grep -q '470-775-5778' index.html
+                    if grep -RniE 'bdpc|CAD Guardian|tsmithcode.github.io/bdpc' . \
+                      --exclude-dir=.git --exclude='pages.yml'; then
+                      echo 'Prohibited cross-project reference found.' >&2
+                      exit 1
+                    fi
+                - name: Configure GitHub Pages
+                  uses: actions/configure-pages@v5
+                  with:
+                    enablement: true
+                - name: Build Pages artifact
+                  shell: bash
+                  run: |
+                    set -euo pipefail
+                    mkdir -p /tmp/mk-site
+                    rsync -a ./ /tmp/mk-site/ \
+                      --exclude='.git' --exclude='.github' --exclude='.bootstrap' \
+                      --exclude='README.md'
+                - name: Upload Pages artifact
+                  uses: actions/upload-pages-artifact@v3
+                  with:
+                    path: /tmp/mk-site
+                - name: Deploy to GitHub Pages
+                  id: deployment
+                  uses: actions/deploy-pages@v4
+          EOF
+          rm -f .github/workflows/bootstrap.yml
+
+      - name: Enforce repository separation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f index.html
+          test -s melodie-craig-founder.webp
+          grep -q 'M. Kathleen, LLC' index.html
+          grep -q 'Melodie Craig' index.html
+          grep -q 'MelodieCraig@gmail.com' index.html
+          grep -q '470-775-5778' index.html
+          if grep -RniE 'bdpc|CAD Guardian|tsmithcode.github.io/bdpc' . \
+            --exclude-dir=.git --exclude='bootstrap.yml'; then
+            echo 'Cross-project reference remains.' >&2
+            exit 1
+          fi
+
+      - name: Commit the independent production site
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Launch M. Kathleen, LLC in standalone repository'
+          git push origin HEAD:main
