@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/bootstrap.yml'
+  issues:
+    types: [opened]
   workflow_dispatch:
 
 permissions:
@@ -16,6 +18,7 @@ concurrency:
 
 jobs:
   migrate:
+    if: github.event_name != 'issues' || github.event.issue.title == 'bootstrap-site'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -82,9 +85,11 @@ jobs:
 
       - name: Install the permanent Pages deployment workflow
         shell: bash
+        env:
+          PAGE_URL_EXPRESSION: '${{ "${{ steps.deployment.outputs.page_url }}" }}'
         run: |
           set -euo pipefail
-          cat > .github/workflows/pages.yml <<'EOF'
+          cat > .github/workflows/pages.yml <<EOF
           name: Deploy M. Kathleen website
 
           on:
@@ -105,7 +110,7 @@ jobs:
             deploy:
               environment:
                 name: github-pages
-                url: ${{ steps.deployment.outputs.page_url }}
+                url: $PAGE_URL_EXPRESSION
               runs-on: ubuntu-latest
               steps:
                 - name: Check out source
@@ -120,8 +125,7 @@ jobs:
                     grep -q 'Melodie Craig' index.html
                     grep -q 'MelodieCraig@gmail.com' index.html
                     grep -q '470-775-5778' index.html
-                    if grep -RniE 'bdpc|CAD Guardian|tsmithcode.github.io/bdpc' . \
-                      --exclude-dir=.git --exclude='pages.yml'; then
+                    if grep -RniE 'bdpc|CAD Guardian|tsmithcode.github.io/bdpc' . --exclude-dir=.git --exclude='pages.yml'; then
                       echo 'Prohibited cross-project reference found.' >&2
                       exit 1
                     fi
@@ -134,9 +138,7 @@ jobs:
                   run: |
                     set -euo pipefail
                     mkdir -p /tmp/mk-site
-                    rsync -a ./ /tmp/mk-site/ \
-                      --exclude='.git' --exclude='.github' --exclude='.bootstrap' \
-                      --exclude='README.md'
+                    rsync -a ./ /tmp/mk-site/ --exclude='.git' --exclude='.github' --exclude='.bootstrap' --exclude='README.md'
                 - name: Upload Pages artifact
                   uses: actions/upload-pages-artifact@v3
                   with:
@@ -157,8 +159,7 @@ jobs:
           grep -q 'Melodie Craig' index.html
           grep -q 'MelodieCraig@gmail.com' index.html
           grep -q '470-775-5778' index.html
-          if grep -RniE 'bdpc|CAD Guardian|tsmithcode.github.io/bdpc' . \
-            --exclude-dir=.git --exclude='bootstrap.yml'; then
+          if grep -RniE 'bdpc|CAD Guardian|tsmithcode.github.io/bdpc' . --exclude-dir=.git --exclude='bootstrap.yml'; then
             echo 'Cross-project reference remains.' >&2
             exit 1
           fi
