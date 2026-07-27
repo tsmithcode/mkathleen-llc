@@ -1,32 +1,26 @@
 (() => {
-  const photo = 'data:image/webp;base64,' + (window.__mkPhotoParts || []).join('');
-  document.querySelectorAll('[data-founder-photo]').forEach((img) => {
-    img.src = photo;
-  });
-  const menuButton = document.querySelector('.menu-button');
-  const nav = document.querySelector('.primary-nav');
+  const menuButton = document.querySelector('.menu');
+  const nav = document.querySelector('.navlinks');
   const closeMenu = () => {
     nav?.classList.remove('open');
-    menuButton?.classList.remove('open');
     menuButton?.setAttribute('aria-expanded', 'false');
-    menuButton?.setAttribute('aria-label', 'Open navigation');
+    if (menuButton) menuButton.textContent = '☰';
   };
   menuButton?.addEventListener('click', () => {
-    const open = !nav.classList.contains('open');
-    nav.classList.toggle('open', open);
-    menuButton.classList.toggle('open', open);
+    const open = nav.classList.toggle('open');
     menuButton.setAttribute('aria-expanded', String(open));
-    menuButton.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+    menuButton.textContent = open ? '✕' : '☰';
   });
   nav?.querySelectorAll('a').forEach(link => link.addEventListener('click', closeMenu));
   document.addEventListener('keydown', event => { if (event.key === 'Escape') closeMenu(); });
-  document.getElementById('year').textContent = new Date().getFullYear();
+  const year = document.getElementById('year');
+  if (year) year.textContent = new Date().getFullYear();
 
   const share = async () => {
     const data = {
       title: 'M. Kathleen, LLC',
       text: 'Experienced, founder-led payroll operations support from Melodie Craig, CPP.',
-      url: 'https://tsmithcode.github.io/mkathleen-llc/'
+      url: `${window.location.origin}${window.location.pathname}`
     };
     try {
       if (navigator.share) {
