@@ -1,6 +1,7 @@
 (() => {
-  // Load the founder-approved mobile portrait correction after the base stylesheet.
-  if (!document.querySelector('link[data-mobile-portrait-fix]')) {
+  // Load the founder-approved mobile portrait correction when the page does not
+  // already include it directly.
+  if (!document.querySelector('link[href*="mobile-portrait-fix.css"]')) {
     const mobileFix = document.createElement('link');
     mobileFix.rel = 'stylesheet';
     mobileFix.href = 'mobile-portrait-fix.css?v=20260727.4';
