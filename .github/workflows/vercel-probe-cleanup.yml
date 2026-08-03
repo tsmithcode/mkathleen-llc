@@ -1,0 +1,71 @@
+name: Governed Vercel probe cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      execute:
+        description: "Run deletion after the dry-run inventory"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      confirmation:
+        description: "For execution, enter DELETE_MKATHLEEN_PROBES exactly"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mkathleen-vercel-probe-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Review and remove allowlisted probes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: vercel-cleanup
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Show exact deletion allowlist
+        shell: pwsh
+        run: ./scripts/Remove-VercelProbeProjects.ps1
+
+      - name: Validate destructive-action confirmation
+        if: ${{ inputs.execute == 'true' }}
+        shell: pwsh
+        run: |
+          if ("${{ inputs.confirmation }}" -cne "DELETE_MKATHLEEN_PROBES") {
+            throw "Confirmation mismatch. No deletion was attempted."
+          }
+
+      - name: Delete the eight allowlisted probe projects
+        if: ${{ inputs.execute == 'true' }}
+        shell: pwsh
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: ./scripts/Remove-VercelProbeProjects.ps1 -Execute
+
+      - name: Record dry-run status
+        if: ${{ inputs.execute != 'true' }}
+        shell: bash
+        run: echo "Dry run complete. No Vercel projects were deleted." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record executed-cleanup status
+        if: ${{ inputs.execute == 'true' && success() }}
+        shell: bash
+        run: |
+          {
+            echo "## Vercel probe cleanup submitted"
+            echo
+            echo "Eight exact, allowlisted probe projects were submitted for deletion."
+            echo "The protected project \`mkathleen-llc\` was not included."
+            echo "Verify the Vercel inventory before treating the operation as closed."
+          } >> "$GITHUB_STEP_SUMMARY"
