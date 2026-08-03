@@ -34,3 +34,7 @@ python3 -m http.server 8080
 ## Deployment
 
 Push `main`. `.github/workflows/pages.yml` validates the repository boundary and deploys the site to GitHub Pages.
+
+## Operations
+
+The governed removal procedure for eight obsolete Vercel troubleshooting projects is documented in [`docs/operations/vercel-probe-cleanup.md`](docs/operations/vercel-probe-cleanup.md). The procedure uses an exact deletion allowlist and hard-protects the legitimate `mkathleen-llc` project.
